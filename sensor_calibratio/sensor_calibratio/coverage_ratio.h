@@ -105,7 +105,7 @@ namespace cv_tools
     }
 
     template <typename T>
-    Mat draw_dentisity(vector<T> pt_vec, cv::Size image_size, int slidin_windows = 3 , int down_sample = 10)
+    Mat draw_dentisity(vector<T> pt_vec, cv::Size image_size, int slide_windows = 3 , int down_sample = 10)
     {
         
         Mat img = Mat(int(image_size.height/down_sample),int( image_size.width / down_sample), CV_32F)*0;
@@ -114,24 +114,28 @@ namespace cv_tools
         cout << "image_size = " << img.size() << endl;
         for (auto pt : pt_vec)
         {
-            float avail_size_x = std::min((int)(pt.x + slidin_windows), img.cols) - std::max((int)(pt.x - slidin_windows),0);
-            float avail_size_y = std::min((int)(pt.y + slidin_windows), img.rows) - std::max((int)(pt.y - slidin_windows), 0);
-            float score = slidin_windows * slidin_windows / avail_size_x / avail_size_y;
-            //T pt = pt_vec[pt_idx];
+            
+
+
 #pragma omp parallel for 
-            for (int pt_x = pt.x - slidin_windows; pt_x < (int)(pt.x + slidin_windows); pt_x+=  down_sample)
+            for (int pt_x = pt.x - slide_windows; pt_x <= (int)(pt.x + slide_windows); pt_x += down_sample)
             {
-                if (pt_x < 0 || pt_x / down_sample >= img.cols)
-                    continue;
-                for (int pt_y = pt.y - slidin_windows; pt_y <  (int)(pt.y + slidin_windows); pt_y+=  down_sample)
+                for (int pt_y = pt.y - slide_windows; pt_y <= (int)(pt.y + slide_windows); pt_y += down_sample)
                 {
-                    if (pt_y < 0 || pt_y / down_sample >= img.rows)
+                    if (pt_y < 0 ||  pt_y / down_sample >= img.rows ||
+                        (pt_x < 0 || pt_x / down_sample >= img.cols))
                     {
                         continue;
                     }
-                    Point pt_temp = Point(pt_x / down_sample, pt_y / down_sample);
+                    Point pt_temp = Point( round(pt_x / down_sample), round(pt_y / down_sample));
                     //cout << pt_temp << endl;
                     //img.at<float>(pt_temp) = img.at<float>(pt_temp) + score;// img_init_bias.at<float>(pt_temp);
+                    //img.at<float>(pt_temp) = img.at<float>(pt_temp) + score;// img_init_bias.at<float>(pt_temp);
+
+                    float avail_size_x = std::min((pt_x + slide_windows) / (float)down_sample , (float)img.cols) - std::max((pt_x - slide_windows) / (float)down_sample, (float)0) ;
+                    float avail_size_y = std::min((pt_y + slide_windows) / (float)down_sample , (float)img.rows) - std::max((pt_y - slide_windows) / (float)down_sample, (float)0) ;
+                    float score = ((slide_windows ) * (slide_windows ) / avail_size_x / avail_size_y);
+
                     img.at<float>(pt_temp) = img.at<float>(pt_temp) + score;// img_init_bias.at<float>(pt_temp);
                 }
             }
