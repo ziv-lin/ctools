@@ -27,12 +27,12 @@ namespace cv_tools
     }
 
     template <typename T>
-    Mat draw_pt_on_img(cv::Mat & img, const vector<T> pt_vec)
+    Mat draw_pt_on_img(cv::Mat & img, const vector<T> pt_vec, cv::Scalar pt_color = cv::Scalar::all(255))
     {
-        int radius = 3;
+        int radius = std::ceil(img.cols*1/320);
         for (auto pt : pt_vec)
         {
-            cv::circle(img, pt, radius, cv::Scalar::all(255), 1, CV_AA);
+            cv::circle(img, pt, radius, pt_color, -1, CV_AA);
         }
         return img;
     }
@@ -53,12 +53,13 @@ namespace cv_tools
     }
 
     template <typename T>
-    Mat draw_convex_hull(cv::Mat & img, const vector<T> convex_hull_pt)
+    Mat draw_convex_hull(cv::Mat & img, const vector<T> convex_hull_pt , cv::Scalar line_color = cv::Scalar::all(255))
     {
         unsigned int i = 0;
+        int line_size = std::ceil(img.cols * 1 / 640);
         for (i = 0; i < convex_hull_pt.size(); i++)
         {
-            cv::line(img, convex_hull_pt[i], convex_hull_pt[(i + 1) % convex_hull_pt.size()], Scalar::all(255), 1, CV_AA);
+            cv::line(img, convex_hull_pt[i], convex_hull_pt[(i + 1) % convex_hull_pt.size()], line_color, line_size, CV_AA);
         }
         return img;
     }
@@ -101,6 +102,43 @@ namespace cv_tools
         cv_tools::coverage_ratio(convex_hull_pt, img_size);
         imshow("image", img);
         cv::waitKey(0);
+    }
+
+    template <typename T>
+    Mat draw_dentisity(vector<T> pt_vec, cv::Size image_size, int slidin_windows = 3 , int down_sample = 10)
+    {
+        
+        Mat img = Mat(int(image_size.height/down_sample),int( image_size.width / down_sample), CV_32F)*0;
+        //Mat img_init_bias = init_weight_mat(img.clone(), slidin_windows, down_sample);
+
+        cout << "image_size = " << img.size() << endl;
+        for (auto pt : pt_vec)
+        {
+            float avail_size_x = std::min((int)(pt.x + slidin_windows), img.cols) - std::max((int)(pt.x - slidin_windows),0);
+            float avail_size_y = std::min((int)(pt.y + slidin_windows), img.rows) - std::max((int)(pt.y - slidin_windows), 0);
+            float score = slidin_windows * slidin_windows / avail_size_x / avail_size_y;
+            //T pt = pt_vec[pt_idx];
+#pragma omp parallel for 
+            for (int pt_x = pt.x - slidin_windows; pt_x < (int)(pt.x + slidin_windows); pt_x+=  down_sample)
+            {
+                if (pt_x < 0 || pt_x / down_sample >= img.cols)
+                    continue;
+                for (int pt_y = pt.y - slidin_windows; pt_y <  (int)(pt.y + slidin_windows); pt_y+=  down_sample)
+                {
+                    if (pt_y < 0 || pt_y / down_sample >= img.rows)
+                    {
+                        continue;
+                    }
+                    Point pt_temp = Point(pt_x / down_sample, pt_y / down_sample);
+                    //cout << pt_temp << endl;
+                    //img.at<float>(pt_temp) = img.at<float>(pt_temp) + score;// img_init_bias.at<float>(pt_temp);
+                    img.at<float>(pt_temp) = img.at<float>(pt_temp) + score;// img_init_bias.at<float>(pt_temp);
+                }
+            }
+        }
+        //cv::normalize(img, img, 255, 0, NORM_MINMAX);
+        //img.convertTo(img, CV_8U);
+        return img;
     }
 
 }
